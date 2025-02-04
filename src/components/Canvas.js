@@ -4,19 +4,6 @@ import React, { useEffect, useState, useRef } from "react";
 // import { database } from './firebase';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faEraser, faGun, faRotateLeft, faRotateRight, faDownload } from "@fortawesome/free-solid-svg-icons";
-/*
-Mar 30th: 
-    - Implementation of multi-user collaboration
-        - real time collaboration (multiple users can draw on the same canvas and their changes will be synced in real time)
-        - sync undo/redo (all users will see each other's undo/redo actions)
-        - user specific data (track who is drawing what)
-    - room-based sessions
-    - Firebase authentication
-
-April 20th: Deployment of the application using Firebase
-*/
-
-
 
 const DrawingCanvas = () => {
     const canvasRef = useRef(null);
