@@ -4,7 +4,7 @@ import 'firebase/auth';  // Import Firebase Authentication
 const firebaseApp = firebase.initializeApp(firebaseConfig);
 
 export const signIn = async () => {
-    //sign in with google
+    //sign in
 }
 
 export const signOut = () => {

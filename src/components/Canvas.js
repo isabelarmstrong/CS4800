@@ -1,7 +1,7 @@
 import '../styles/canvas.css';
 import gunshotAudio from '../media/Gunshot.mp3'
 import React, { useEffect, useState, useRef } from "react";
-import { database } from './firebase';
+// import { database } from './firebase';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faEraser, faGun, faRotateLeft, faRotateRight, faDownload } from "@fortawesome/free-solid-svg-icons";
 /*
@@ -62,21 +62,21 @@ const DrawingCanvas = () => {
 
         saveCanvasState();
 
-        //listen for changes from Firebase and restore canvas state
-        const canvasRef = database.ref("canvasState");
-        canvasRef.on("value", (snapshot) => {
-            const canvasData = snapshot.val();
+        // //listen for changes from Firebase and restore canvas state
+        // const canvasRef = database.ref("canvasState");
+        // canvasRef.on("value", (snapshot) => {
+        //     const canvasData = snapshot.val();
 
-            if(canvasData) {
-                //restore canvas state from firebase
-                restoreCanvasState(canvasData.dataURL);
-            }
-        });
+        //     if(canvasData) {
+        //         //restore canvas state from firebase
+        //         restoreCanvasState(canvasData.dataURL);
+        //     }
+        // });
 
-        //cleanup firebase listener when component unmounts
-        return () => {
-            canvasRef.off();
-        }
+        // //cleanup firebase listener when component unmounts
+        // return () => {
+        //     canvasRef.off();
+        // }
 
     }, [lineWidth, strokeStyle, isErasing]);
 
@@ -146,9 +146,9 @@ const DrawingCanvas = () => {
         const dataURL = canvas.toDataURL();
 
         //save dataURL to Firebase db
-        database.ref("canvasState").set({
-            dataURL: dataURL,
-        })
+        // database.ref("canvasState").set({
+        //     dataURL: dataURL,
+        // })
 
         //remove any future states 
         const newHistory = history.slice(0, historyIndex + 1);
