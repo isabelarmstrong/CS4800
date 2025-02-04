@@ -5,12 +5,6 @@ import React, { useEffect, useState, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faEraser, faGun, faRotateLeft, faRotateRight, faDownload } from "@fortawesome/free-solid-svg-icons";
 /*
-
-//curr time: _ hours
-
-Feb 23rd:
-    - setting up Firebase for real-time updates.
-
 Mar 30th: 
     - Implementation of multi-user collaboration
         - real time collaboration (multiple users can draw on the same canvas and their changes will be synced in real time)
