@@ -1,4 +1,4 @@
-import "./styles.css";
+import "./styles/styles.css";
 import React from "react";
 import Canvas from "./components/Canvas"
 

@@ -1,0 +1,10 @@
+.canvas-container > .toolbar {
+  position: fixed;
+  padding: 15px;
+  border-radius: 10px;
+  background-color: rgba(0, 26, 255, 0.25);
+}
+
+.group {
+    padding-bottom: 5px;
+}
