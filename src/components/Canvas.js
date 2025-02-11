@@ -1,15 +1,20 @@
 import '../styles/canvas.css';
 import gunshotAudio from '../media/Gunshot.mp3'
 import React, { useEffect, useState, useRef } from "react";
-// import { database } from './firebase';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faEraser, faGun, faRotateLeft, faRotateRight, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { getDatabase, ref, push, onValue } from 'firebase/database';
+import { auth } from "./firebase";
 
-const DrawingCanvas = () => {
+const DrawingCanvas = ({ user, roomID }) => {
     const canvasRef = useRef(null);
+    const db = getDatabase();
     const audio = new Audio(gunshotAudio);
     const canvasWidth = 2000;
     const canvasHeight = 2000;
+
+    //State management for layers? ------------TO DO IF HAVE TIME
+    const [backgroundColor, setBackgroundColor] = useState("whitesmoke");
     
     //State management for drawing/brush properties
     const [isDrawing, setIsDrawing] = useState(false);
@@ -17,21 +22,51 @@ const DrawingCanvas = () => {
     const [lineWidth, setLineWidth] = useState(1); 
     const [strokeStyle, setStrokeStyle] = useState("black"); 
 
-    //State management for layers?
-    const [backgroundColor, setBackgroundColor] = useState("whitesmoke");
-
     //State managemnt for canvas history
     const [history, setHistory] = useState([]); //Stores snapshots of canvas
     const [historyIndex, setHistoryIndex] = useState(-1); //tracks undo/redo position
+    const [currStrokePoints, setCurrStrokePoints] = useState([]); //store points of the curr stroke
+
+    //push stroke to Firebase when user draws
+    const saveStrokeToFireBase = (points, color, width) => {
+        if (!Array.isArray(points)){
+            console.error("points is not an array: ", points);
+            return;
+        }
+
+        const pointsDict = {};
+        points.forEach((point, index) => {
+            pointsDict[`point${index}`] = point;
+        })
+
+        const newStroke = {
+            color,
+            width,
+            points: pointsDict,
+        }
+
+        push(ref(db, `rooms/${roomID}/drawing/strokes`), newStroke);
+    };
     
     const getCanvasContext = () => {
         const canvas = canvasRef.current;
+        if (!canvas) {
+            console.error("Canvas is not available.");
+            return { canvas: null, ctx: null };
+        }
+
         const ctx = canvas.getContext("2d");
-    
-        return {canvas, ctx};
+        if (!ctx) {
+            console.error("Canvas context is not available.");
+            return { canvas: null, ctx: null };
+        }
+
+        return { canvas, ctx };
     }
 
     useEffect( () => {
+        if (!user) return; //exit if user is not authenticated
+
         const {ctx} = getCanvasContext();
 
         if (!isErasing){
@@ -41,29 +76,56 @@ const DrawingCanvas = () => {
             ctx.strokeStyle = strokeStyle;
         }
 
-        saveCanvasState();
+        //***** saveCanvasState();
 
-        // //listen for changes from Firebase and restore canvas state
-        // const canvasRef = database.ref("canvasState");
-        // canvasRef.on("value", (snapshot) => {
-        //     const canvasData = snapshot.val();
+        const strokesRef = ref(db, `rooms/${roomID}/drawing/strokes`);
 
-        //     if(canvasData) {
-        //         //restore canvas state from firebase
-        //         restoreCanvasState(canvasData.dataURL);
-        //     }
-        // });
+        //listem for real-time stroke updates from Firebase
+        const unsubscribe = onValue(strokesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const strokes = Object.values(data);
+                redrawCanvas(strokes);
+            }
+        });
 
-        // //cleanup firebase listener when component unmounts
-        // return () => {
-        //     canvasRef.off();
-        // }
+        return () => unsubscribe();
+    }, [lineWidth, strokeStyle, isErasing, roomID, user]);
 
-    }, [lineWidth, strokeStyle, isErasing]);
+    const redrawCanvas = (strokes) => {
+        const { ctx } = getCanvasContext();
+        if (!ctx) return;
+    
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+        strokes.forEach((stroke) => {
+            ctx.beginPath();
+            ctx.strokeStyle = stroke.color;
+            ctx.lineWidth = stroke.width;
+    
+            // Convert points object to an array
+            const pointsArray = Object.values(stroke.points);
+    
+            // Move to the first point
+            ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
+    
+            // Draw lines to the rest of the points
+            pointsArray.forEach((point) => {
+                ctx.lineTo(point.x, point.y);
+            });
+    
+            // Render the stroke
+            ctx.stroke();
+        });
+    };
+    
+    
 
     /*************************** DRAWING/ERASE/CLEAR CANVAS ***************************/
     const handleMouseDown = (e) => {
         const {ctx} = getCanvasContext();
+        const x = e.nativeEvent.offsetX;
+        const y = e.nativeEvent.offsetY;
 
         setIsDrawing(true);
 
@@ -72,7 +134,10 @@ const DrawingCanvas = () => {
             ctx.beginPath();
 
             //Sets starting position for the next drawing operation
-            ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+            ctx.moveTo(x, y);
+
+            //reset curr stroke points
+            setCurrStrokePoints([{x, y}]);
         } else {
             eraser(ctx, e);
         }
@@ -82,21 +147,35 @@ const DrawingCanvas = () => {
         if (!isDrawing) return;
 
         const {ctx} = getCanvasContext();
+        const x = e.nativeEvent.offsetX;
+        const y = e.nativeEvent.offsetY
 
         
         if(!isErasing){
             //Add a new point with the given (x, y) and create a line from the previous point to the new point 
-            ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+            ctx.lineTo(x, y);
 
             //Render current path
             ctx.stroke();
+
+            //Add new point to the curr stroke
+            setCurrStrokePoints((prevPoints) => [...prevPoints, {x, y}]);
+
+            //Save curr stroke (all points) to Firebase
+            saveStrokeToFireBase(currStrokePoints, strokeStyle, lineWidth);
         } else {
             eraser(ctx, e);
         }
     };
 
     const handleMouseUp = () => {
+        if (!isErasing && currStrokePoints.length > 0) {
+            // Save the completed stroke to Firebase
+            saveStrokeToFireBase(currStrokePoints, strokeStyle, lineWidth);
+        }
+
         setIsDrawing(false);
+        setCurrStrokePoints([]); //reset curr stroke points
         saveCanvasState();
     }
 

@@ -3,3 +3,7 @@
   font-weight: 555;
   text-align: center;
 }
+
+html, body {
+  margin: 0;
+}
