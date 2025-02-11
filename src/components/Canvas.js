@@ -95,7 +95,10 @@ const DrawingCanvas = ({ user, roomID }) => {
             const data = snapshot.val();
             if (data) {
                 console.log("recieved strokes data: ", data);
-                const strokes = Object.values(data);
+                const strokes = Object.values(data)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(entry => entry[1]);
+                
                 redrawCanvas(strokes);
             } else{
                 console.log("No stroke data found.");
@@ -106,31 +109,46 @@ const DrawingCanvas = ({ user, roomID }) => {
     }, [lineWidth, strokeStyle, isErasing, roomID, user]);
 
     const redrawCanvas = (strokes) => {
-        const { ctx } = getCanvasContext();
-        if (!ctx) return;
-    
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    
-        strokes.forEach((stroke) => {
-            ctx.beginPath();
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.width;
-    
-            // Convert points object to an array
-            const pointsArray = Object.values(stroke.points);
-    
-            // Move to the first point
+    const { ctx } = getCanvasContext();
+    if (!ctx) {
+        console.error("Canvas context is not available.");
+        return;
+    }
+
+    console.log("Redrawing canvas with strokes:", strokes);
+
+    // Clear the canvas before redrawing
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw each stroke
+    strokes.forEach((stroke, index) => {
+        console.log(`Drawing stroke ${index}:`, stroke);
+
+        // Reset the path and set stroke properties
+        ctx.beginPath();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width;
+        ctx.lineCap = "round"; // Ensure smooth line endings
+
+        // Convert points object to an array
+        const pointsArray = Object.values(stroke.points);
+
+        // Move to the first point
+        if (pointsArray.length > 0) {
+            console.log("First point:", pointsArray[0]);
             ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
-    
+
             // Draw lines to the rest of the points
-            pointsArray.forEach((point) => {
+            pointsArray.forEach((point, pointIndex) => {
+                console.log(`Point ${pointIndex}:`, point);
                 ctx.lineTo(point.x, point.y);
             });
-    
+
             // Render the stroke
             ctx.stroke();
-        });
-    };
+        }
+    });
+};
     
     
 
