@@ -1,81 +1,36 @@
-import React, { useState, useEffect } from "react";
-import { getDatabase, ref, onValue, set } from "firebase/database";
-import { auth } from "./firebase";
+import React from "react";
 
-const JoinRoom = () => {
-    const [roomID, setRoomID] = useState("");
-    const [publicRooms, setPublicRooms] = useState([]);
-    const [errorMessage, setErrorMessage] = useState("");
-
-    useEffect(() => {
-        const roomsRef = ref(getDatabase(), "rooms");
-
-        const unsubscribe = onValue(roomsRef, (snapshot) => {
-            const roomsData = snapshot.val();
-
-            if (roomsData) {
-                const roomsList = Object.keys(roomsData);
-                setPublicRooms(roomsList);
-            }
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    const handleJoinRoom = () => {
-        if (roomID){
-            const roomRef = ref(getDatabase(), `rooms/${roomID}`);
-
-            onValue(roomRef, (snapshot) => {
-                if (snapshot.exists()){
-                    //room exists, join room
-                    joinRoom(roomID);
-                } else {
-                    setErrorMessage("Room does not exist. Please check Room ID.");
-                }
-            });
-        } else {
-            setErrorMessage("Please enter a Room ID.");
-        }
-    };
-
-    const joinRoom = (roomID) => {
-        const roomRef = ref(getDatabase(), `rooms/${roomID}/users`);
-
-        set(roomRef, {
-            [auth.currentUser.uid]: {
-                name: auth.currentUser.displayName || "Anonymous",
-                email: auth.currentUser.email,
-            },
-        }).then(() => {
-            console.log("Successfully joined room: ", roomID);
-        }).catch((error) => {
-            console.error("Error joining room: ", error.message);
-        });
-    };
-    
+const JoinRoom = ({ currRoom, availableRooms, errorMessage, roomID, setRoomID, handleJoinRoom}) => {
     return (
         <div>
-            <h2>Join a room</h2>
+            { currRoom ? (
+                <h2>Current room: {currRoom}</h2>
+            ) : (
+                <h2>Join a room</h2>
+            )}
+
             {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
 
-            <input 
-                type="text"
-                placeholder="Enter Room ID"
-                value={roomID}
-                onChange={(e) => setRoomID(e.target.value)}
-            />
-
-            <button onClick={handleJoinRoom}>
-                JoinRoom
-            </button>
-
             <div>
-                <h3>Public rooms:</h3>
+
+                <input
+                    type="text"
+                    placeholder="Enter Room ID"
+                    value={roomID}
+                    onChange={(e) => setRoomID(e.target.value)}
+                />
+                <button onClick={handleJoinRoom}>Join Room</button>
+
+                <h3>Available rooms:</h3>
                 <ul> 
-                    {publicRooms.map((room) => (
+                    {availableRooms.map((room) => (
                         <li key={room}>
-                            <button onClick={() => setRoomID(room)}>{room}</button>
+                            <button
+                                onClick={() => setRoomID(room)}  // Set roomID when clicking on a room
+                                style={{ backgroundColor: room === roomID ? "lightblue" : "" }}
+                            >
+                            {room}
+                            </button>
                         </li>
                     ))}
                 </ul>

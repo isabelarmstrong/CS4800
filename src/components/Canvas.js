@@ -37,13 +37,13 @@ const DrawingCanvas = ({ user, roomID }) => {
         const pointsDict = {};
         points.forEach((point, index) => {
             pointsDict[`point${index}`] = point;
-        })
+        });
 
         const newStroke = {
             color,
             width,
             points: pointsDict,
-        }
+        };
 
         push(ref(db, `rooms/${roomID}/drawing/strokes`), newStroke);
     };
@@ -65,27 +65,40 @@ const DrawingCanvas = ({ user, roomID }) => {
     }
 
     useEffect( () => {
-        if (!user) return; //exit if user is not authenticated
+        console.log("User: ", user);
+        console.log("Room: ", roomID);
+
+        if (!user && !roomID) {
+            console.error("User is not authenticated or roomID is missing.");
+            return;
+        }
+
+        console.log("Authenticated!")
 
         const {ctx} = getCanvasContext();
 
         if (!isErasing){
+            console.log("setting brush properties")
             //set brush properties
             ctx.lineWidth = lineWidth;
             ctx.lineCap = "round";
             ctx.strokeStyle = strokeStyle;
         }
 
-        //***** saveCanvasState();
+        saveCanvasState();
 
         const strokesRef = ref(db, `rooms/${roomID}/drawing/strokes`);
 
         //listem for real-time stroke updates from Firebase
+        console.log("Listening for strokes");
         const unsubscribe = onValue(strokesRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
+                console.log("recieved strokes data: ", data);
                 const strokes = Object.values(data);
                 redrawCanvas(strokes);
+            } else{
+                console.log("No stroke data found.");
             }
         });
 
@@ -171,7 +184,7 @@ const DrawingCanvas = ({ user, roomID }) => {
     const handleMouseUp = () => {
         if (!isErasing && currStrokePoints.length > 0) {
             // Save the completed stroke to Firebase
-            saveStrokeToFireBase(currStrokePoints, strokeStyle, lineWidth);
+            saveStrokeToFireBase([...currStrokePoints], strokeStyle, lineWidth);
         }
 
         setIsDrawing(false);
