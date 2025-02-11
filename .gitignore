@@ -2,5 +2,8 @@ node_modules
 firebase.js
 .firebase
 .github
+.firebaserc
+firebase.json
+database.rules.json
 build
 goalposts
