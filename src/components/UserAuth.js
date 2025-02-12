@@ -1,16 +1,15 @@
 import '../styles/auth.css';
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 const UserAuth = ({ user, handleSignIn, handleSignOut }) => {
     return (
-        <div>
+        <div className='auth-wrapper'>
             {user ? (
-                <div> 
-                    <img src={user.photoURL}></img>
-                    <p>{user.displayName}</p>
-                    <button onClick={handleSignOut}>
+                <div className='user-wrapper'> 
+                <button onClick={handleSignOut}>
                         Sign out
                     </button>
+                    <img className='user-pic' src={user.photoURL}></img>
                 </div>
             ) : (
                 <button onClick={handleSignIn}>

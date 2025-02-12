@@ -10,8 +10,8 @@ const DrawingCanvas = ({ user, roomID }) => {
     const canvasRef = useRef(null);
     const db = getDatabase();
     const audio = new Audio(gunshotAudio);
-    const canvasWidth = 2000;
-    const canvasHeight = 2000;
+    const canvasWidth = 1000;
+    const canvasHeight = 1000;
 
     //State management for layers? ------------TO DO IF HAVE TIME
     const [backgroundColor, setBackgroundColor] = useState("whitesmoke");

@@ -2,8 +2,17 @@
   font-family: "Arial";
   font-weight: 555;
   text-align: center;
+  background-color: rgb(120, 120, 122);
 }
 
 html, body {
   margin: 0;
+}
+
+.navbar {
+  display: inline-block;
+  background-color: rgb(51, 52, 53);
+  width: 100%;  /* Make it span the entire width */
+  height: 62px; /* Set your desired height */
+  box-sizing: border-box;  /* Ensures padding and border don't affect width/height */
 }

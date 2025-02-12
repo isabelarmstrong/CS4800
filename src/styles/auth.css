@@ -1,8 +1,15 @@
-/*
-    TODO: 
-        - button styling
-            - float above canvas
-            - make pretty
-            - sit below username ? Dropdown (pfp acts as button for drop down)
-        - make pfp sit beside username
-*/
+.user-wrapper {
+    padding: 10px;
+    display: flex;
+    justify-content: end;
+    gap: 10px;
+}
+
+.user-wrapper > .user-pic {
+    border-radius: 100%;
+    width: 25%;
+}
+
+.auth-wrapper {
+    display: inline-block;
+}

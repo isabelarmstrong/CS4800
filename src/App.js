@@ -5,8 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import Canvas from "./components/Canvas";
 import UserAuth from "./components/UserAuth";
-import CreateRoom from "./components/CreateRoom";
-import JoinRoom from "./components/JoinRoom";
+import Room from "./components/Room";
 
 export default function App() {
   //user
@@ -40,6 +39,8 @@ export default function App() {
     try{
       //firebase funct to log user out
       await signOut(auth);
+
+      //kick user out of room
     }catch (error){
       console.error("Error signing out", error.message);
     }
@@ -50,6 +51,7 @@ export default function App() {
   const [roomID, setRoomID] = useState("");
   const [availableRooms, setAvailableRooms] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [joinedRoom, setJoinedRoom] = useState(false);
 
   useEffect(() => {
     const roomsRef = ref(getDatabase(), "rooms");
@@ -85,32 +87,36 @@ export default function App() {
   };
 
   const joinRoom = (roomID) => {
-      const roomRef = ref(getDatabase(), `rooms/${roomID}/users`);
+    const roomRef = ref(getDatabase(), `rooms/${roomID}/users`);
 
-      set(roomRef, {
-          [auth.currentUser.uid]: {
-              name: auth.currentUser.displayName || "Anonymous",
-              email: auth.currentUser.email,
-          },
-      }).then(() => {
-          console.log("Successfully joined room: ", roomID);
-      }).catch((error) => {
-          console.error("Error joining room: ", error.message);
-      });
+    set(roomRef, {
+        [auth.currentUser.uid]: {
+            name: auth.currentUser.displayName || "Anonymous",
+            email: auth.currentUser.email,
+        },
+    }).then(() => {
+        console.log("Successfully joined room: ", roomID);
+    }).catch((error) => {
+        console.error("Error joining room: ", error.message);
+    });
+
+    setJoinedRoom(true);
   };
 
   return (
     <div className="App">
-      <UserAuth user={user} handleSignIn={handleSignIn} handleSignOut={handleSignOut} />
-      <CreateRoom />
-      <JoinRoom currRoom={currRoom} availableRooms={availableRooms} errorMessage={errorMessage} roomID={roomID} setRoomID={setRoomID} handleJoinRoom={handleJoinRoom} />
+      <div className="navbar">
+        
+      <Room currRoom={currRoom} availableRooms={availableRooms} errorMessage={errorMessage} roomID={roomID} setRoomID={setRoomID} handleJoinRoom={handleJoinRoom} />
+        <UserAuth user={user} handleSignIn={handleSignIn} handleSignOut={handleSignOut} />
 
-      { user && 
-      ( roomID &&
-        <>
-          <Canvas user={user} roomID={roomID}/>
-        </>
-      )}
+        { user && 
+        ( joinedRoom &&
+          <>
+            <Canvas user={user} roomID={roomID}/>
+          </>
+        )}
+      </div>
     </div>
   );
 }
