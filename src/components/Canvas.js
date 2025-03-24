@@ -3,15 +3,18 @@ import gunshotAudio from '../media/Gunshot.mp3'
 import React, { useEffect, useState, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faEraser, faGun, faRotateLeft, faRotateRight, faDownload } from "@fortawesome/free-solid-svg-icons";
-import { getDatabase, ref, push, onValue } from 'firebase/database';
+import { getDatabase, ref, push, onValue, get, set, update } from 'firebase/database';
 import { auth } from "./firebase";
 
-const DrawingCanvas = ({ user, roomID }) => {
+const DrawingCanvas = ({ user, userID, roomID }) => {
     const canvasRef = useRef(null);
     const db = getDatabase();
     const audio = new Audio(gunshotAudio);
     const canvasWidth = 1000;
     const canvasHeight = 1000;
+
+    
+    //const historyRef = ref(db, `rooms/${roomID}/drawing/history/${userID}`);
 
     //State management for layers? ------------TO DO IF HAVE TIME
     const [backgroundColor, setBackgroundColor] = useState("whitesmoke");
@@ -74,79 +77,193 @@ const DrawingCanvas = ({ user, roomID }) => {
 
         //create a db reference to retrieve stroke data for the drawing session
         const strokesRef = ref(db, `rooms/${roomID}/drawing/strokes`);
+        const historyRef = ref(db, `rooms/${roomID}/drawing/history`);
 
         //listem for real-time stroke updates from Firebase
         console.log("Listening for strokes");
 
         //onValue() listens for changes in strokesRef. Wheenver a stroke is added/changed, the callback funct is triggered
         //unsubscribe means the event listener onValue is removed when rerendering or unmounting
-        const unsubscribe = onValue(strokesRef, (snapshot) => {
-
-            //retrieve stored stroke data
+    
+        //listen for stroke updates
+        const unsubscribeStrokes = onValue(strokesRef, async (snapshot) => {
             const data = snapshot.val();
 
             //check to make sure data exists
             if (data) {
-                console.log("recieved strokes data: ", data);
-                //extract the strokes and convert them to an arr
+                console.log("Got stroke data");
+                //extract strokes and convert to arr
                 const strokes = Object.values(data);
 
-                // Sort the strokes array based on a timestamp or sequence number
-                const orderedStrokes = strokes.sort((a, b) => {
-                    // Assuming each stroke has a `timestamp` field (e.g., when it was added)
-                    return a.timestamp - b.timestamp; // Sort in ascending order by timestamp
-                });
+                //process stroke data
+                const processedStrokes = processStrokes(strokes);
 
-                //update the entire canvas with the retrieved strokes ------- CHANGE TO ONLY UPDATE CHANGED/MODIFIED STROKES INSTEAD OF ENTIRE CANVAS
-                redrawCanvas(orderedStrokes);
-            } else{
+                //retrieve history data
+                const historySnapshot = await get(historyRef);
+                const history = historySnapshot.val();
+
+                //check that history exists
+                if (history){
+                    console.log("Got history data");
+
+                    //flatten history data
+                    const historyArr = [];
+                    for (const userID in history) {
+                        if (history.hasOwnProperty(userID)) {
+                            const userHistory = history[userID];
+                            for (const strokeID in userHistory) {
+                                if (userHistory.hasOwnProperty(strokeID)) {
+                                    historyArr.push({
+                                        strokeID, // Include the strokeID
+                                        ...userHistory[strokeID] // Spread the rest of the properties (e.g., action)
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    redrawCanvas(processedStrokes, historyArr);
+                }
+            } else {
                 console.log("No stroke data found.");
             }
         });
 
-        return () => unsubscribe(); //Clean up on re-render or unmount
+        const unsubscribeHistory = onValue(historyRef, async (snapshot) => {
+            const history = snapshot.val();
+
+            //check to make sure data exists
+            if (history) {
+                console.log("Got history data");
+
+                //flatten history data
+                const historyArr = [];
+                for (const userID in history) {
+                    if (history.hasOwnProperty(userID)) {
+                        const userHistory = history[userID];
+                        for (const strokeID in userHistory) {
+                            if (userHistory.hasOwnProperty(strokeID)) {
+                                historyArr.push({
+                                    strokeID, // Include the strokeID
+                                    ...userHistory[strokeID] // Spread the rest of the properties (e.g., action)
+                                });
+                            }
+                        }
+                    }
+                }
+
+                //retrieve snapshot data
+                const strokesSnapshot = await get(strokesRef);
+                const strokes = strokesSnapshot.val();
+
+                //check that strokes exist
+                if (strokes) {
+                    console.log("Got strokes data");
+                    //process stroke data
+                    const processedStrokes = processStrokes(strokes);
+
+                    redrawCanvas(processedStrokes, historyArr)
+                }
+            } else {
+                console.log("No history data found.");
+            }
+        });
+
+        //clean up listeners on re-render or unmount
+        return () => {
+            unsubscribeStrokes();
+            unsubscribeHistory();
+        };
     }, [lineWidth, strokeStyle, isErasing, roomID, user]);
 
+    const processStrokes = (strokes) => {
+        const totalStrokes = [];
+
+        //for each user
+        for (const uID in strokes) {
+            //check to make sure that uID is valid and belongs directly to the strokes object
+            if (strokes.hasOwnProperty(uID)){
+                const userStrokes = strokes[uID]; //arr to hold user strokes for that uID
+                
+                //for each stroke in userStrokes
+                for (const sID in userStrokes){
+                    //check to make sure that sID is valid and belongs directly to userStrokes
+                    if (userStrokes.hasOwnProperty(sID)){
+                        //add the data to the totalStrokes arr
+                        totalStrokes.push({
+                            ...userStrokes[sID], //properties of the stroke
+                            sID, //strokeID for sorting purposes
+                            uID //userID for reference
+                        });
+                    }
+                }
+            }
+        }
+      
+
+        return totalStrokes;
+    };
+
     //redraw canvas for when new strokes are made
-    const redrawCanvas = (strokes) => {
+    const redrawCanvas = (strokes, history) => {
         const { ctx } = getCanvasContext();
         if (!ctx) {
             console.error("Canvas context is not available.");
             return;
         }
+
+        if (!strokes || !history){
+            console.error("Invalid strokes or history data: ", strokes, history);
+            return;
+        }
     
         console.log("Redrawing canvas with strokes:", strokes);
+        console.log("History: ", history);
     
         // Clear the canvas before redrawing
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
         // Draw each stroke
-        strokes.forEach((stroke, index) => {
-            console.log(`Drawing stroke ${index}:`, stroke);
-    
-            // Reset the path and set stroke properties
-            ctx.beginPath();
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.width;
-            ctx.lineCap = "round"; // Ensure smooth line endings
-    
+        //iterate over each user
+        strokes.forEach((stroke) => {
+            const { sID, color, width, points } = stroke; 
+
+            const isAdded = history.some((entry) => {
+
+                console.log(entry.strokeID, "   ", sID);
+                
+                return entry.strokeID === sID && entry.action === "add";
+            });
+        
+            //check in the case stroke is marked as "remove"
+            if (!isAdded){
+                //console.log("Skipping stroke: ", sID);
+                return;
+            }
+            
             // Convert points object to an array
-            const pointsArray = Object.values(stroke.points);
+            const pointsArray = Object.values(points);
+
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = "round"; // Ensure smooth line ending
     
             // Move to the first point
             if (pointsArray.length > 0) {
-                console.log("First point:", pointsArray[0]);
+                //console.log("First point:", pointsArray[0]);
                 ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
     
                 // Draw lines to the rest of the points
                 pointsArray.forEach((point, pointIndex) => {
-                    console.log(`Point ${pointIndex}:`, point);
+                    //console.log(`Point ${pointIndex}:`, point);
                     ctx.lineTo(point.x, point.y);
                 });
     
                 // Render the stroke
                 ctx.stroke();
             }
+        
         });
     };
 
@@ -176,8 +293,16 @@ const DrawingCanvas = ({ user, roomID }) => {
         
         //try catch block for graceful error handling
         try{
-            //push stroke to db
-            await push(ref(db, `rooms/${roomID}/drawing/strokes`), newStroke);
+            // Generate a unique strokeID
+            const strokeID = push(ref(db, `rooms/${roomID}/drawing/strokes/${userID}`)).key;
+
+            // Save the history entry first
+            const historyEntry = { strokeID, action: "add" };
+            await push(ref(db, `rooms/${roomID}/drawing/history/${userID}`), historyEntry);
+            console.log("History saved successfully.");
+
+            // Save the stroke to Firebase
+            await set(ref(db, `rooms/${roomID}/drawing/strokes/${userID}/${strokeID}`), newStroke);
             console.log("Stroke saved successfully.");
         }catch (error){
             console.error("Error saving stroke: ", error);
@@ -303,29 +428,86 @@ const DrawingCanvas = ({ user, roomID }) => {
         }
     }
     
-    const undo = () => {
+    const undo = async () => {
         console.log("Undo")
 
-        //check to make sure user doesn't undo past index 0 (oldest index in history arr)
-        if (historyIndex > 0) {
-            //go back an index
-            setHistoryIndex(historyIndex - 1);
+        try{
+            //retrieve user's history
+            const snapshot = await get(ref(db, `rooms/${roomID}/drawing/history/${userID}`));
+            //extract data
+            const historyObject = snapshot.val();
 
-            //set the canvas state to that prev index
-            restoreCanvasState(history[historyIndex - 1]);
+            //convert history to an arr
+            const history = Object.values(historyObject);
+
+            //check to make sure that history for user exists
+            if (!history){
+                console.error("No history found for user: ", userID);
+                return;
+            }
+
+            //reverse history arr, find the index of the first entry where action is "add"
+            const lastAdd = history.reverse().findIndex(entry => entry.action === "add");
+
+            //check in the case there is no previous "add" action
+            if (lastAdd === -1){
+                console.error("No strokes to undo.");
+                return;
+            }
+
+            //grab the strokeID of lastAdd
+            const strokeID = history[lastAdd].strokeID;
+
+            //copy the history arr
+            const updatedHistory = [...history];
+            //update the entry at the lastAdd index to mark it as "remove"
+            updatedHistory[lastAdd] = { strokeID, action: "remove" };
+            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistory); 
+
+        } catch (error){
+            console.error("Error during undo: ", error);
         }
     }
 
-    const redo = () => {
+    const redo = async () => {
         console.log("Redo")
 
-        //check to make sure there is a state ahead to redo to
-        if (historyIndex < history.length - 1) {
-            //go forward an index
-            setHistoryIndex(historyIndex + 1);
+        try{
+            //retrieve user's history
+            const snapshot = await get(ref(db, `rooms/${roomID}/drawing/history/${userID}`));
+            //extract data
+            const historyObject = snapshot.val();
 
-            //set canvas state to that new index
-            restoreCanvasState(history[historyIndex + 1]);
+            //convert history to an arr
+            const history = Object.values(historyObject);
+
+
+            //check to make sure that history for user exists
+            if (!history){
+                console.error("No history found for user: ", userID);
+                return;
+            }
+
+            //reverse history arr, find the index of the first entry where action is "remove"
+            const lastRemove = history.reverse().findIndex(entry => entry.action === "remove");
+
+            //check in the case there is no previous "remove" action
+            if (lastRemove === -1){
+                console.error("No strokes to redo.");
+                return;
+            }
+
+            //grab the strokeID of lastRemove
+            const strokeID = history[lastRemove].strokeID;
+
+            //copy the history arr
+            const updatedHistory = [...history];
+            //update the entry at the lastAdd index to mark it as "add"
+            updatedHistory[lastRemove] = { strokeID, action: "add" };
+            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistory); 
+
+        } catch (error){
+            console.error("Error during redo: ", error);
         }
     }
 

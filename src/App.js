@@ -57,12 +57,12 @@ export default function App() {
     const roomsRef = ref(getDatabase(), "rooms");
 
     const unsubscribe = onValue(roomsRef, (snapshot) => {
-        const roomsData = snapshot.val();
+      const roomsData = snapshot.val();
 
-        if (roomsData) {
-            const roomsList = Object.keys(roomsData);
-            setAvailableRooms(roomsList);
-        }
+      if (roomsData) {
+        const roomsList = Object.keys(roomsData);
+        setAvailableRooms(roomsList);
+      }
     });
 
     return () => unsubscribe();
@@ -70,17 +70,17 @@ export default function App() {
 
   const handleJoinRoom = () => {
     if (roomID){
-        const roomRef = ref(getDatabase(), `rooms/${roomID}`);
+      const roomRef = ref(getDatabase(), `rooms/${roomID}`);
 
-        onValue(roomRef, (snapshot) => {
-            if (snapshot.exists()){
-                //room exists, join room
-                joinRoom(roomID);
-                setCurrRoom(roomID);
-            } else {
-                setErrorMessage("Room does not exist. Please check Room ID.");
-            }
-        });
+      onValue(roomRef, (snapshot) => {
+        if (snapshot.exists()){
+          //room exists, join room
+          joinRoom(roomID);
+          setCurrRoom(roomID);
+        } else {
+          setErrorMessage("Room does not exist. Please check Room ID.");
+        }
+      });
     } else {
         setErrorMessage("Please enter a Room ID.");
     }
@@ -95,7 +95,7 @@ export default function App() {
             email: auth.currentUser.email,
         },
     }).then(() => {
-        console.log("Successfully joined room: ", roomID);
+        //console.log("Successfully joined room: ", roomID);
     }).catch((error) => {
         console.error("Error joining room: ", error.message);
     });
@@ -113,7 +113,7 @@ export default function App() {
         { user && 
         ( joinedRoom &&
           <>
-            <Canvas user={user} roomID={roomID}/>
+            <Canvas user={user} userID={auth.currentUser.uid} roomID={roomID}/>
           </>
         )}
       </div>
