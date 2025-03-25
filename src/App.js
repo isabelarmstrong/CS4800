@@ -47,6 +47,7 @@ export default function App() {
   };
 
   //room
+  const [roomName, setRoomName] = useState("");
   const [currRoom, setCurrRoom] = useState("");
   const [roomID, setRoomID] = useState("");
   const [availableRooms, setAvailableRooms] = useState([]);
@@ -55,28 +56,38 @@ export default function App() {
 
   useEffect(() => {
     const roomsRef = ref(getDatabase(), "rooms");
-
+    
     const unsubscribe = onValue(roomsRef, (snapshot) => {
       const roomsData = snapshot.val();
 
       if (roomsData) {
-        const roomsList = Object.keys(roomsData);
+        const roomsList = Object.entries(roomsData).map(([id, roomData]) => ({
+          id,  // This is the unique identifier
+          name: roomData.name || `Room ${id}` // Fallback name
+        }));
         setAvailableRooms(roomsList);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
   const handleJoinRoom = () => {
+    //check to make sure roomID is not empty/null/undefined
     if (roomID){
+
+      //Create a reference to the room in the db
       const roomRef = ref(getDatabase(), `rooms/${roomID}`);
 
+      //set up a real-time listener ofr that room
       onValue(roomRef, (snapshot) => {
+        //check to make sure room exists
         if (snapshot.exists()){
           //room exists, join room
           joinRoom(roomID);
+          //update curr room state
           setCurrRoom(roomID);
+          //set room name
+          setRoomName(snapshot.val().name || `Room ${roomID}`)
         } else {
           setErrorMessage("Room does not exist. Please check Room ID.");
         }
@@ -87,9 +98,11 @@ export default function App() {
   };
 
   const joinRoom = (roomID) => {
-    const roomRef = ref(getDatabase(), `rooms/${roomID}/users`);
+    //create a reference to the "users" subcollection in the rooom
+    const roomUsersRef = ref(getDatabase(), `rooms/${roomID}/users`);
 
-    set(roomRef, {
+    //create an object to write the current user's info to the db
+    set(roomUsersRef, {
         [auth.currentUser.uid]: {
             name: auth.currentUser.displayName || "Anonymous",
             email: auth.currentUser.email,
@@ -100,14 +113,35 @@ export default function App() {
         console.error("Error joining room: ", error.message);
     });
 
-    setJoinedRoom(true);
+    //indicate the user has joined and is currently in a room
+    setJoinedRoom(true); 
+  };
+
+  const handleLeaveRoom = () => {
+    if (!roomID || !user) return;
+
+    //get the user's db reference
+    const userInRoomRef = ref(getDatabase(), `rooms/${roomID}/users/${user.uid}`);
+
+    //remove the user from the room
+    set(userInRoomRef, null)
+    .then(() => {
+      setCurrRoom("");
+      setRoomID("");
+      setRoomName("");
+      setJoinedRoom(false);
+      console.log("Left room successfully!");
+    })
+    .catch((error) => {
+      console.error("Error leaving room: ", error.message);
+    });
   };
 
   return (
     <div className="App">
       <div className="navbar">
         
-      <Room currRoom={currRoom} availableRooms={availableRooms} errorMessage={errorMessage} roomID={roomID} setRoomID={setRoomID} handleJoinRoom={handleJoinRoom} />
+      <Room roomName={roomName} currRoom={currRoom} availableRooms={availableRooms} errorMessage={errorMessage} roomID={roomID} setRoomID={setRoomID} handleJoinRoom={handleJoinRoom} handleLeaveRoom={handleLeaveRoom} />
         <UserAuth user={user} handleSignIn={handleSignIn} handleSignOut={handleSignOut} />
 
         { user && 
