@@ -429,87 +429,103 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
     }
     
     const undo = async () => {
-        console.log("Undo")
-
-        try{
+        console.log("Undo");
+    
+        try {
             //retrieve user's history
             const snapshot = await get(ref(db, `rooms/${roomID}/drawing/history/${userID}`));
-            //extract data
             const historyObject = snapshot.val();
-
-            //convert history to an arr
-            const history = Object.values(historyObject);
-
-            //check to make sure that history for user exists
-            if (!history){
-                console.error("No history found for user: ", userID);
+    
+            //check if history exists
+            if (!historyObject) {
+                console.error("No history found for user:", userID);
                 return;
             }
-
-            //reverse history arr, find the index of the first entry where action is "add"
-            const lastAdd = history.reverse().findIndex(entry => entry.action === "add");
-
-            //check in the case there is no previous "add" action
-            if (lastAdd === -1){
+    
+            //convert history to an arr
+            const history = Object.values(historyObject);
+    
+            if (history.length === 0) {
+                console.error("No history found for user:", userID);
+                return;
+            }
+    
+            //reverse history arr, find index of last entry where action is "add"
+            const lastAdd = history.toReversed().findIndex(entry => entry.action === "add");
+    
+            if (lastAdd === -1) {
                 console.error("No strokes to undo.");
                 return;
             }
-
+    
+            //convert reversed index to original index
+            const originalIndex = history.length - 1 - lastAdd;
+    
             //grab the strokeID of lastAdd
-            const strokeID = history[lastAdd].strokeID;
-
-            //copy the history arr
+            const strokeID = history[originalIndex].strokeID;
+    
+            //copy and update history arr
             const updatedHistory = [...history];
-            //update the entry at the lastAdd index to mark it as "remove"
-            updatedHistory[lastAdd] = { strokeID, action: "remove" };
-            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistory); 
-
-        } catch (error){
-            console.error("Error during undo: ", error);
+            updatedHistory[originalIndex] = { strokeID, action: "remove" };
+    
+            //convert updatedHistory back to an object
+            const updatedHistoryObject = Object.fromEntries(
+                updatedHistory.map((entry, index) => [index, entry])
+            );
+    
+            //update history in the db
+            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistoryObject);
+        } catch (error) {
+            console.error("Error during undo:", error);
         }
-    }
+    };
+    
 
     const redo = async () => {
-        console.log("Redo")
-
-        try{
-            //retrieve user's history
-            const snapshot = await get(ref(db, `rooms/${roomID}/drawing/history/${userID}`));
-            //extract data
+        console.log("Redo");
+    
+        try {
+            // Retrieve the current user's history
+            const historyRef = ref(db, `rooms/${roomID}/drawing/history/${userID}`);
+            const snapshot = await get(historyRef);
             const historyObject = snapshot.val();
-
-            //convert history to an arr
-            const history = Object.values(historyObject);
-
-
-            //check to make sure that history for user exists
-            if (!history){
-                console.error("No history found for user: ", userID);
+    
+            if (!historyObject) {
+                console.error("No history found for user:", userID);
                 return;
             }
-
-            //reverse history arr, find the index of the first entry where action is "remove"
-            const lastRemove = history.reverse().findIndex(entry => entry.action === "remove");
-
-            //check in the case there is no previous "remove" action
-            if (lastRemove === -1){
+    
+            // Convert history to an array
+            const history = Object.values(historyObject);
+    
+            // Find the last "remove" action to redo
+            const lastRemoveIndex = history.findIndex((entry) => entry.action === "remove");
+    
+            if (lastRemoveIndex === -1) {
                 console.error("No strokes to redo.");
                 return;
             }
-
-            //grab the strokeID of lastRemove
-            const strokeID = history[lastRemove].strokeID;
-
-            //copy the history arr
+    
+            // Get the strokeID of the last "remove" action
+            const strokeID = history[lastRemoveIndex].strokeID;
+    
+            // Update the action to "add" to redo the stroke
             const updatedHistory = [...history];
-            //update the entry at the lastAdd index to mark it as "add"
-            updatedHistory[lastRemove] = { strokeID, action: "add" };
-            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistory); 
-
-        } catch (error){
-            console.error("Error during redo: ", error);
+            updatedHistory[lastRemoveIndex] = { strokeID, action: "add" };
+    
+            // Convert updated history back to an object
+            const updatedHistoryObject = Object.fromEntries(
+                updatedHistory.map((entry, index) => [index, entry])
+            );
+    
+            // Update the history in Firebase
+            await set(ref(db, `rooms/${roomID}/drawing/history/${userID}`), updatedHistoryObject);
+            console.log("Redo successful.");
+        } catch (error) {
+            console.error("Error during redo:", error);
         }
-    }
+    };
+    
 
     /*************************** EXPORT AS IMAGE ***************************/
     const exportCanvas = () => {
