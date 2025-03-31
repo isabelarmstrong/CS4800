@@ -13,9 +13,6 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
     const canvasWidth = 1000;
     const canvasHeight = 1000;
 
-    
-    //const historyRef = ref(db, `rooms/${roomID}/drawing/history/${userID}`);
-
     //State management for layers? ------------TO DO IF HAVE TIME
     const [backgroundColor, setBackgroundColor] = useState("whitesmoke");
     
@@ -50,7 +47,7 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
 
         //if they both exist, return both
         return { canvas, ctx };
-    }
+    };
 
     useEffect( () => {
         console.log("User: ", user);
@@ -211,8 +208,8 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
             console.error("Canvas context is not available.");
             return;
         }
-
-        if (!strokes || !history){
+    
+        if (!strokes || !history) {
             console.error("Invalid strokes or history data: ", strokes, history);
             return;
         }
@@ -224,113 +221,130 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
         // Draw each stroke
-        //iterate over each user
         strokes.forEach((stroke) => {
-            const { sID, color, width, points } = stroke; 
-
-            const isAdded = history.some((entry) => {
-
-                console.log(entry.strokeID, "   ", sID);
-                
-                return entry.strokeID === sID && entry.action === "add";
-            });
-        
-            //check in the case stroke is marked as "remove"
-            if (!isAdded){
-                //console.log("Skipping stroke: ", sID);
-                return;
-            }
-            
-            // Convert points object to an array
+            const { sID, color, width, points, isEraser } = stroke;
+    
+            const isAdded = history.some((entry) => entry.strokeID === sID && entry.action === "add");
+            if (!isAdded) return;
+    
             const pointsArray = Object.values(points);
-
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = width;
-            ctx.lineCap = "round"; // Ensure smooth line ending
     
-            // Move to the first point
-            if (pointsArray.length > 0) {
-                //console.log("First point:", pointsArray[0]);
-                ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
+            if (isEraser) {
+                // Handle eraser strokes
+                ctx.save();
+                ctx.globalCompositeOperation = "destination-out"; // Erase mode
+                ctx.lineWidth = width;
+                ctx.lineCap = "round";
     
-                // Draw lines to the rest of the points
-                pointsArray.forEach((point, pointIndex) => {
-                    //console.log(`Point ${pointIndex}:`, point);
-                    ctx.lineTo(point.x, point.y);
-                });
+                if (pointsArray.length > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
     
-                // Render the stroke
-                ctx.stroke();
+                    pointsArray.forEach((point) => {
+                        ctx.lineTo(point.x, point.y);
+                    });
+    
+                    ctx.stroke();
+                }
+    
+                ctx.restore(); // Restore default drawing mode
+            } else {
+                // Handle regular strokes
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.lineCap = "round";
+    
+                if (pointsArray.length > 0) {
+                    ctx.moveTo(pointsArray[0].x, pointsArray[0].y);
+    
+                    pointsArray.forEach((point) => {
+                        ctx.lineTo(point.x, point.y);
+                    });
+    
+                    ctx.stroke();
+                }
             }
-        
         });
     };
 
     //push stroke to Firebase when user draws
-    const saveStrokeToFireBase = async (points, color, width) => {
-
-        //check to make sure param points is an arr
+    const saveStrokeToFireBase = async (points, color, width, isEraser = false) => {
+        // Check to make sure param points is an array
         if (!Array.isArray(points)) {
-            console.error("points is not an array:", points);
+            console.error("Points is not an array:", points);
             return;
         }
     
-        //Convert arr to dictionary with sequential keys
+        // Convert array to dictionary with sequential keys
         const pointsDict = {};
         points.forEach((point, index) => {
             pointsDict[index] = point;
         });
     
-        //create stroke object
+        // Create stroke object
         const newStroke = {
             color,
             width,
             points: pointsDict,
+            isEraser,
         };
     
         console.log("Saving stroke to Firebase:", newStroke);
-        
-        //try catch block for graceful error handling
-        try{
+    
+        try {
+            // Retrieve the current user's history
+            const historyRef = ref(db, `rooms/${roomID}/drawing/history/${userID}`);
+            const snapshot = await get(historyRef);
+            const historyObject = snapshot.val();
+    
+            if (historyObject) {
+                // Convert history to an array
+                const history = Object.values(historyObject);
+    
+                // Remove any "redo" entries (i.e., entries after the last "add")
+                const updatedHistory = history.filter((entry) => entry.action === "add");
+    
+                // Convert updated history back to an object
+                const updatedHistoryObject = Object.fromEntries(
+                    updatedHistory.map((entry, index) => [index, entry])
+                );
+    
+                // Update the history in Firebase
+                await set(historyRef, updatedHistoryObject);
+            }
+    
             // Generate a unique strokeID
             const strokeID = push(ref(db, `rooms/${roomID}/drawing/strokes/${userID}`)).key;
-
+    
             // Save the history entry first
             const historyEntry = { strokeID, action: "add" };
             await push(ref(db, `rooms/${roomID}/drawing/history/${userID}`), historyEntry);
             console.log("History saved successfully.");
-
+    
             // Save the stroke to Firebase
             await set(ref(db, `rooms/${roomID}/drawing/strokes/${userID}/${strokeID}`), newStroke);
             console.log("Stroke saved successfully.");
-        }catch (error){
+        } catch (error) {
             console.error("Error saving stroke: ", error);
-
         }
     };
-    
-    
 
     /*************************** DRAWING/ERASE/CLEAR CANVAS ***************************/
     const handleMouseDown = (e) => {
-        const {ctx} = getCanvasContext();
+        const { ctx } = getCanvasContext();
         const x = e.nativeEvent.offsetX;
         const y = e.nativeEvent.offsetY;
-
+    
         setIsDrawing(true);
-
-        if(!isErasing){
-            //Start a new path
+    
+        if (!isErasing) {
             ctx.beginPath();
-
-            //Sets starting position for the next drawing operation
             ctx.moveTo(x, y);
-
-            //reset curr stroke points
-            setCurrStrokePoints([{x, y}]);
+            setCurrStrokePoints([{ x, y }]);
         } else {
-            eraser(ctx, e);
+            // Start a new eraser stroke
+            setCurrStrokePoints([{ x, y }]);
         }
     };
 
@@ -342,26 +356,27 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
         const y = e.nativeEvent.offsetY;
     
         if (!isErasing) {
-            // Add a new point with the given (x, y) and create a line from the previous point to the new point
             ctx.lineTo(x, y);
-    
-            // Render current path
             ctx.stroke();
-    
-            // Add the new point to the current stroke
-            setCurrStrokePoints((prevPoints) => {
-                const updatedPoints = [...prevPoints, { x, y }];
-                return updatedPoints;
-            });
+            setCurrStrokePoints((prevPoints) => [...prevPoints, { x, y }]);
         } else {
+            // Erase locally
             eraser(ctx, e);
+    
+            // Add points to the current eraser stroke
+            setCurrStrokePoints((prevPoints) => [...prevPoints, { x, y }]);
         }
     };
 
     const handleMouseUp = () => {
-        if (!isErasing && currStrokePoints.length > 0) {
-            // Save the completed stroke to Firebase
-            saveStrokeToFireBase(currStrokePoints, strokeStyle, lineWidth);
+        if (currStrokePoints.length > 0) {
+            if (!isErasing) {
+                // Save the completed stroke to Firebase
+                saveStrokeToFireBase(currStrokePoints, strokeStyle, lineWidth);
+            } else {
+                // Save the completed eraser stroke to Firebase
+                saveStrokeToFireBase(currStrokePoints, "transparent", lineWidth * 2, true);
+            }
         }
     
         setIsDrawing(false);
@@ -375,16 +390,34 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
 
         //get the x and y coords of cursor, subtract (eraserSize/2) to center over the cursor to erase from the middle. eraser size for height and width of rectangle
         ctx.clearRect(e.nativeEvent.offsetX - eraserSize / 2, e.nativeEvent.offsetY - eraserSize / 2, eraserSize, eraserSize);
-    }
+    };
 
-    const clearCanvas = () => {
-        const {ctx} = getCanvasContext();
+    const clearCanvas = async () => {
+        const { ctx } = getCanvasContext();
+        if (!ctx) {
+            console.error("Canvas context is not available.");
+            return;
+        }
 
-        //Clear the canvas starting at (0,0) to (canvasWidth, canvasHeight)
+        // Clear the local canvas for the user
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-        saveCanvasState();
+
+        try {
+            // Reference to the user's strokes in Firebase
+            const userStrokesRef = ref(db, `rooms/${roomID}/drawing/strokes/${userID}`);
+            const userHistoryRef = ref(db, `rooms/${roomID}/drawing/history/${userID}`);
+
+            // Remove all strokes for the current user
+            await set(userStrokesRef, null); // Set to null to delete all strokes
+            await set(userHistoryRef, null); // Set to null to delete all history
+            console.log("User's strokes cleared successfully.");
+        } catch (error) {
+            console.error("Error clearing user's strokes: ", error);
+        }
+
+        // Play gunshot sound
         audio.play();
-    }
+    };
 
 
     /*************************** UNDO/REDO ***************************/
@@ -412,21 +445,7 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
         //set the index to the index of the latest state
         setHistoryIndex(newHistory.length - 1);
 
-    }
-
-    const restoreCanvasState = (dataURL) => {
-        const {ctx} = getCanvasContext();
-        const img = new Image();
-
-        //load the image from dataURL
-        img.src = dataURL;
-
-        //ensures that the canvas is cleared and the image is drawn only AFTER the image has loaded
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-            ctx.drawImage(img, 0, 0);
-        }
-    }
+    };
     
     const undo = async () => {
         console.log("Undo");
@@ -558,7 +577,7 @@ const DrawingCanvas = ({ user, userID, roomID }) => {
                 link.click();
             }
             }
-    }
+    };
 
   return (
     <div className="canvas-container">
