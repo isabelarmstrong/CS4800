@@ -6,19 +6,19 @@ import { faBars, faTimes } from "@fortawesome/free-solid-svg-icons";
 import '../styles/rooms.css';
 
 const RoomMenu = ({ roomName, currRoom, availableRooms, errorMessage, roomID, setRoomID, handleJoinRoom, handleLeaveRoom }) => {
-    const [isMenuOpen, setIsMenuOpen] = useState(false); // State to manage menu visibility
-    const [activeTab, setActiveTab] = useState("join"); // State to manage active tab ("join" or "create")
+    const [isMenuOpen, setIsMenuOpen] = useState(false); //manage menu visibility
+    const [activeTab, setActiveTab] = useState("join"); //manage active tab ("join" or "create")
 
     const toggleMenu = () => {
-        setIsMenuOpen(!isMenuOpen); // Toggle menu visibility
+        setIsMenuOpen(!isMenuOpen); //toggle menu visibility
     };
 
     const handleCreateRoom = () => {
-        const roomName = prompt("Enter a name for the new room:"); // Prompt for room name
+        const roomName = prompt("Enter a name for the new room:"); //prompt for room name
         if (!roomName) return;
 
-        const roomRef = ref(getDatabase(), 'rooms'); // Reference "rooms" in db
-        const newRoomRef = push(roomRef); // Generate a unique room ID using push()
+        const roomRef = ref(getDatabase(), 'rooms'); //reference "rooms" in db
+        const newRoomRef = push(roomRef); //generate a unique roomID using push()
 
         set(newRoomRef, {
             name: roomName,
@@ -26,11 +26,11 @@ const RoomMenu = ({ roomName, currRoom, availableRooms, errorMessage, roomID, se
                 [auth.currentUser.uid]: { name: auth.currentUser.displayName || "Anonymous", email: auth.currentUser.email }
             },
             drawing: {
-                strokes: {} // No strokes at creation
+                strokes: {} //no strokes at creation
             }
         }).then(() => {
             alert("Room created successfully!");
-            setRoomID(newRoomRef.key); // Set roomID to pass to canvas
+            setRoomID(newRoomRef.key); //set roomID to pass to canvas
         }).catch((error) => {
             console.error("Error creating room: ", error.message);
         });
@@ -39,7 +39,7 @@ const RoomMenu = ({ roomName, currRoom, availableRooms, errorMessage, roomID, se
     return (
         <div className="room-menu-wrapper">
             <button className="hamburger-menu" onClick={toggleMenu}>
-                <FontAwesomeIcon icon={isMenuOpen ? faTimes : faBars} /> {/* Toggle between bars and close icon */}
+                <FontAwesomeIcon icon={isMenuOpen ? faTimes : faBars} />
             </button>
 
             <div className={`overlay ${isMenuOpen ? "open" : ""}`} onClick={toggleMenu}></div>

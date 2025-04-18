@@ -8,7 +8,7 @@ import UserAuth from "./components/UserAuth";
 import Room from "./components/Room";
 
 export default function App() {
-  //user
+  /*****************************************USER****************************************************/
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -39,14 +39,12 @@ export default function App() {
     try{
       //firebase funct to log user out
       await signOut(auth);
-
-      //kick user out of room
     }catch (error){
       console.error("Error signing out", error.message);
     }
   };
 
-  //room
+  /*****************************************ROOM****************************************************/
   const [roomName, setRoomName] = useState("");
   const [currRoom, setCurrRoom] = useState("");
   const [roomID, setRoomID] = useState("");
@@ -58,13 +56,17 @@ export default function App() {
     const roomsRef = ref(getDatabase(), "rooms");
     
     const unsubscribe = onValue(roomsRef, (snapshot) => {
+      //get data of rooms
       const roomsData = snapshot.val();
 
       if (roomsData) {
+        //convert roomsData to an arr of room objects
         const roomsList = Object.entries(roomsData).map(([id, roomData]) => ({
-          id,  // This is the unique identifier
-          name: roomData.name || `Room ${id}` // Fallback name
+          id,
+          name: roomData.name || `Room ${id}`
         }));
+
+        //update availableRooms list in UI
         setAvailableRooms(roomsList);
       }
     });
@@ -72,21 +74,17 @@ export default function App() {
   }, []);
 
   const handleJoinRoom = () => {
-    //check to make sure roomID is not empty/null/undefined
     if (roomID){
-
-      //Create a reference to the room in the db
+      //ref to the room in the db
       const roomRef = ref(getDatabase(), `rooms/${roomID}`);
 
       //set up a real-time listener ofr that room
       onValue(roomRef, (snapshot) => {
+
         //check to make sure room exists
         if (snapshot.exists()){
-          //room exists, join room
           joinRoom(roomID);
-          //update curr room state
-          setCurrRoom(roomID);
-          //set room name
+          setCurrRoom(roomID); //curr room for the sake of keeping rooms hamburger menu functional
           setRoomName(snapshot.val().name || `Room ${roomID}`)
         } else {
           setErrorMessage("Room does not exist. Please check Room ID.");
@@ -98,19 +96,17 @@ export default function App() {
   };
 
   const joinRoom = (roomID) => {
-    //create a reference to the "users" subcollection in the rooom
+    //ref to the "users" subcollection in the rooom
     const roomUsersRef = ref(getDatabase(), `rooms/${roomID}/users`);
 
     //create an object to write the current user's info to the db
     set(roomUsersRef, {
-        [auth.currentUser.uid]: {
-            name: auth.currentUser.displayName || "Anonymous",
-            email: auth.currentUser.email,
-        },
-    }).then(() => {
-        //console.log("Successfully joined room: ", roomID);
+      [auth.currentUser.uid]: {
+        name: auth.currentUser.displayName || "Anonymous",
+        email: auth.currentUser.email,
+      },
     }).catch((error) => {
-        console.error("Error joining room: ", error.message);
+      console.error("Error joining room: ", error.message);
     });
 
     //indicate the user has joined and is currently in a room
